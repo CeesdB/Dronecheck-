@@ -1,0 +1,29 @@
+name: Dronezones bijwerken
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zonebestand downloaden en controleren
+        env:
+          ZONES_URL: ${{ vars.ZONES_URL }}
+        run: |
+          set -e
+          test -n "$ZONES_URL" || { echo "Stel de variabele ZONES_URL in"; exit 1; }
+          curl -fsSL "$ZONES_URL" -o zones.new.json
+          python3 -c "import json;d=json.load(open('zones.new.json'));assert (d if isinstance(d,list) else d.get('features')), 'geen zones in bestand'"
+          mv zones.new.json zones.json
+          echo "{\"updated\":\"$(date -u +%FT%TZ)\"}" > zones-meta.json
+      - name: Opslaan
+        run: |
+          git config user.name "zones-bot"
+          git config user.email "zones-bot@users.noreply.github.com"
+          git add zones.json zones-meta.json
+          git commit -m "Zones bijgewerkt" || echo "Geen wijziging"
+          git push
